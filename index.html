@@ -1,0 +1,1467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Impossible Objects in a Normal World — AI Video Studio</title>
+<meta name="robots" content="noindex, nofollow">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- GSAP + Lenis + Three.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollToPlugin.min.js"></script>
+<script src="https://unpkg.com/lenis@1.1.14/dist/lenis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<style>
+  :root {
+    --bg-dark: #0a0a0f;
+    --bg-card: #12121a;
+    --accent: #ff4757;
+    --accent2: #ff6b81;
+    --accent3: #ffa502;
+    --text-primary: #f0f0f5;
+    --text-secondary: #9d9daf;
+    --text-muted: #5a5a6e;
+    --gradient-1: linear-gradient(135deg, #ff4757 0%, #ff6b81 50%, #ffa502 100%);
+    --gradient-2: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 100%);
+    --gradient-3: linear-gradient(135deg, #ff4757 0%, #ffa502 100%);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  html.lenis, html.lenis body { height: auto; }
+  .lenis.lenis-smooth { scroll-behavior: auto !important; }
+  .lenis.lenis-stopped { overflow: hidden; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Custom cursor only on real pointing devices, never on touch */
+  @media (hover: hover) and (pointer: fine) {
+    body, a, button, .cta-badge, .nav-dots a, .img-wrap, .tilt-card, .compliance-card { cursor: none; }
+  }
+
+  /* ── CUSTOM CURSOR (above lightbox) ── */
+  .cursor-dot, .cursor-ring, .cursor-label {
+    position: fixed; top: 0; left: 0; pointer-events: none;
+    transform: translate3d(-50%,-50%,0); will-change: transform;
+  }
+  .cursor-dot   { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); z-index: 12002; mix-blend-mode: difference; }
+  .cursor-ring  { width: 38px; height: 38px; border: 1.5px solid var(--accent); border-radius: 50%; z-index: 12001; transition: width 0.35s cubic-bezier(0.16,1,0.3,1), height 0.35s cubic-bezier(0.16,1,0.3,1), background-color 0.35s, border-color 0.35s; }
+  .cursor-ring.is-hover-image { width: 96px; height: 96px; background: rgba(255,71,87,0.14); border-color: var(--accent2); }
+  .cursor-ring.is-hover-link  { width: 56px; height: 56px; background: rgba(255,165,2,0.14); border-color: var(--accent3); }
+  .cursor-label { z-index: 12003; font-family: 'Space Grotesk', sans-serif; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.25em; text-transform: uppercase; color: #fff; opacity: 0; transition: opacity 0.3s; mix-blend-mode: difference; white-space: nowrap; }
+  .cursor-label.show { opacity: 1; }
+  @media (hover: none), (pointer: coarse) { .cursor-dot, .cursor-ring, .cursor-label { display: none; } body { cursor: auto !important; } }
+
+  /* ── WEBGL CANVAS (ambient shader background) ── */
+  #webgl-bg { position: fixed; inset: 0; z-index: -3; pointer-events: none; }
+  /* Fallback gradient behind the canvas (if WebGL fails) */
+  .bg-gradient-animated { position: fixed; inset: 0; z-index: -4; background: var(--bg-dark); }
+  .bg-gradient-animated::before {
+    content: ''; position: absolute; inset: -50%;
+    background:
+      radial-gradient(ellipse at 20% 50%, rgba(255,71,87,0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(255,165,2,0.04) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 80%, rgba(255,107,129,0.03) 0%, transparent 50%);
+    animation: gradientDrift 20s ease-in-out infinite;
+  }
+  @keyframes gradientDrift {
+    0%, 100% { transform: translate(0,0) rotate(0deg); }
+    50% { transform: translate(-1%,2%) rotate(-0.5deg); }
+  }
+
+  /* ── GRAIN OVERLAY ── */
+  .grain {
+    position: fixed; inset: -50%; width: 200%; height: 200%;
+    pointer-events: none; z-index: 9996; opacity: 0.06;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    animation: grainShift 8s steps(6) infinite;
+  }
+  @keyframes grainShift {
+    0%   { transform: translate(0,0); }
+    16%  { transform: translate(-2%,3%); }
+    33%  { transform: translate(4%,-1%); }
+    50%  { transform: translate(-3%,-2%); }
+    66%  { transform: translate(2%,4%); }
+    83%  { transform: translate(-1%,-3%); }
+    100% { transform: translate(0,0); }
+  }
+
+  /* ── TOP-LEFT: STUDIO BRAND + CONFIDENTIAL LABEL ── */
+  .top-brand {
+    position: fixed; top: 1.25rem; left: 1.5rem; z-index: 200;
+    display: flex; flex-direction: column; gap: 0.35rem;
+    pointer-events: none;
+    mix-blend-mode: difference;
+  }
+  .top-brand .brand-name {
+    font-family: 'Space Grotesk', sans-serif; font-size: 0.88rem; font-weight: 600;
+    letter-spacing: -0.01em; color: #f0f0f5; line-height: 1;
+  }
+  .top-brand .brand-name .dot { color: var(--accent); }
+  .top-brand .confidential {
+    display: flex; align-items: center; gap: 0.45rem;
+    font-family: 'Space Grotesk', sans-serif; font-size: 0.58rem; font-weight: 500;
+    letter-spacing: 0.22em; text-transform: uppercase; color: rgba(240,240,245,0.55);
+  }
+  .top-brand .confidential::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: blinkDot 2.2s ease-in-out infinite;
+  }
+  @keyframes blinkDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  /* ── PROGRESS RING (top-right) ── */
+  .progress-ring { position: fixed; top: 1.25rem; right: 1.25rem; width: 56px; height: 56px; z-index: 200; pointer-events: none; }
+  .progress-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .progress-ring .track { fill: none; stroke: rgba(255,255,255,0.08); stroke-width: 2; }
+  .progress-ring .bar   { fill: none; stroke: url(#pgrad); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 163.36; stroke-dashoffset: 163.36; filter: drop-shadow(0 0 4px rgba(255,71,87,0.6)); }
+  .progress-ring-counter { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; color: var(--text-primary); }
+  .progress-ring-counter .sep, .progress-ring-counter .total { color: var(--text-muted); font-weight: 500; }
+
+  /* ── SLIDES ── */
+  .slide { width: 100vw; min-height: 100vh; display: flex; position: relative; overflow: hidden; }
+
+  /* ── NAV DOTS ── */
+  .nav-dots { position: fixed; right: 1.5rem; top: 50%; transform: translateY(-50%); z-index: 100; display: flex; flex-direction: column; gap: 0.75rem; }
+  .nav-dots a {
+    position: relative; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--text-muted);
+    transition: background 0.35s, box-shadow 0.35s, transform 0.35s cubic-bezier(0.16,1,0.3,1);
+    display: block;
+  }
+  .nav-dots a::after {
+    content: attr(data-label); position: absolute; right: 22px; top: 50%; transform: translateY(-50%);
+    font-family: 'Space Grotesk', sans-serif; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--text-secondary); white-space: nowrap;
+    opacity: 0; pointer-events: none; transition: opacity 0.3s;
+  }
+  .nav-dots a:hover::after { opacity: 1; }
+  .nav-dots a:hover, .nav-dots a.active { background: var(--accent); box-shadow: 0 0 12px rgba(255,71,87,0.6); }
+  .nav-dots a.active { transform: scale(1.5); }
+  @media (max-width: 900px) { .nav-dots { display: none; } }
+
+  /* ── 3D TILT + GLOW ── */
+  .tilt-card { transform-style: preserve-3d; transition: transform 0.25s ease-out, box-shadow 0.3s ease; }
+  .tilt-card:hover { box-shadow: 0 20px 60px rgba(255,71,87,0.18), 0 0 40px rgba(255,71,87,0.08); }
+  .glow-card { position: relative; overflow: hidden; }
+  .glow-card::before {
+    content: ''; position: absolute; top: var(--mouse-y,50%); left: var(--mouse-x,50%);
+    width: 320px; height: 320px; background: radial-gradient(circle, rgba(255,71,87,0.18) 0%, transparent 70%);
+    transform: translate(-50%,-50%); opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 0;
+  }
+  .glow-card:hover::before { opacity: 1; }
+  .glow-card > * { position: relative; z-index: 1; }
+
+  /* ── IMAGE SYSTEM (aspect-ratio aware) ── */
+  .img-wrap {
+    position: relative; display: block; overflow: hidden;
+    background: #0f0f15;
+    transition: transform 0.4s cubic-bezier(0.16,1,0.3,1);
+  }
+  .img-wrap img {
+    display: block; width: 100%; height: 100%; object-fit: cover;
+    filter: saturate(1.08) contrast(1.04);
+    transition: filter 0.4s;
+    will-change: transform;
+  }
+  .img-wrap:hover img { filter: saturate(1.15) contrast(1.06) brightness(1.04); }
+  .img-wrap .img-caption { position: absolute; left: 1rem; bottom: 1rem; font-family: 'Space Grotesk'; font-size: 0.62rem; letter-spacing: 0.25em; text-transform: uppercase; color: rgba(255,255,255,0.55); z-index: 2; opacity: 0; transition: opacity 0.4s; pointer-events: none; }
+  .img-wrap:hover .img-caption { opacity: 1; }
+
+  /* Variant 1 — FULL-BLEED */
+  .img-full-bleed { width: 100%; height: 100%; }
+  .img-full-bleed::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    background: linear-gradient(to left, transparent 55%, rgba(10,10,15,0.85) 100%);
+  }
+  .col-img-right .img-full-bleed::after { background: linear-gradient(to left, transparent 55%, rgba(10,10,15,0.85) 100%); }
+  .col-img-left  .img-full-bleed::after { background: linear-gradient(to right, transparent 55%, rgba(10,10,15,0.85) 100%); }
+
+  /* Variant 2 — EDGE-BLEED */
+  .img-edge-bleed { width: 100%; height: 100%; }
+  .img-edge-bleed::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    background: linear-gradient(to left, transparent 0%, transparent 40%, rgba(10,10,15,0.95) 100%);
+  }
+
+  /* Variant 3 — FRAMELESS MOSAIC */
+  .mosaic { display: grid; gap: 2px; background: rgba(255,255,255,0.04); }
+  .mosaic .img-wrap { background: #0a0a0f; }
+  .mosaic .img-wrap img { transition: transform 1.4s cubic-bezier(0.16,1,0.3,1), filter 0.45s; }
+  .mosaic:hover .img-wrap img { filter: saturate(0.6) brightness(0.55); }
+  .mosaic .img-wrap:hover img { filter: saturate(1.15) contrast(1.08) brightness(1); transform: scale(1.04); }
+  .mosaic-3 { grid-template-columns: repeat(3, 1fr); height: 60vh; }
+  .mosaic-2 { grid-template-columns: repeat(2, 1fr); height: 70vh; }
+
+  /* Variant 4 — COLLAGE */
+  .collage { position: relative; width: 100%; height: 78vh; perspective: 1200px; }
+  .collage .img-wrap {
+    position: absolute; border-radius: 6px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04);
+    transition: transform 0.5s cubic-bezier(0.16,1,0.3,1), box-shadow 0.5s;
+  }
+  .collage .img-wrap:hover {
+    transform: translate3d(0,0,40px) scale(1.04) !important;
+    box-shadow: 0 30px 80px rgba(255,71,87,0.25), 0 0 0 1px rgba(255,71,87,0.2);
+    z-index: 20;
+  }
+
+  /* Variant 5 — MASKED SHAPE (used in About section) */
+  .img-masked {
+    clip-path: polygon(8% 0, 100% 0, 92% 100%, 0 100%);
+    width: 100%; height: 100%;
+  }
+
+  /* Variant 6 — MARQUEE */
+  .marquee-v {
+    position: relative; height: 70vh; overflow: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 15%, #000 85%, transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0%, #000 15%, #000 85%, transparent 100%);
+  }
+  .marquee-v-track { display: flex; flex-direction: column; gap: 1rem; animation: marqueeV 38s linear infinite; }
+  .marquee-v-track .img-wrap { border-radius: 8px; flex-shrink: 0; height: 32vh; }
+  @keyframes marqueeV { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
+
+  /* ── SHARED TEXT ── */
+  .section-label { font-family: 'Space Grotesk', sans-serif; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.3em; text-transform: uppercase; color: var(--accent); margin-bottom: 1.5rem; }
+  .section-title { font-family: 'Space Grotesk', sans-serif; font-size: clamp(2rem,3.5vw,3.2rem); font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; margin-bottom: 1.5rem; }
+  .section-body { font-size: 1rem; line-height: 1.75; color: var(--text-secondary); font-weight: 300; max-width: 600px; }
+  .section-body p + p { margin-top: 1em; }
+
+  /* Split utilities */
+  .split-word { display: inline-block; overflow: hidden; vertical-align: top; }
+  .split-word > span { display: inline-block; will-change: transform,opacity; }
+  .split-char { display: inline-block; will-change: transform,opacity; }
+  .line-mask  { display: inline-block; overflow: hidden; vertical-align: top; line-height: 1.05; max-width: 100%; }
+  .line-mask > .line-inner { display: inline-block; white-space: nowrap; }
+
+  /* ── TWO-COL LAYOUT ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; height: 100vh; width: 100%; }
+  .col-text { padding: 6vh 4vw 6vh 8vw; display: flex; flex-direction: column; justify-content: center; position: relative; z-index: 2; }
+  .col-img  { position: relative; overflow: hidden; }
+
+  /* ── SLIDE 1: TITLE ── */
+  .slide-title { background: var(--gradient-2); align-items: center; padding: 0; }
+  .slide-title::before { content: ''; position: absolute; top: -30%; right: -10%; width: 70vw; height: 70vw; background: radial-gradient(circle, rgba(255,71,87,0.15) 0%, transparent 70%); border-radius: 50%; animation: float1 15s ease-in-out infinite; }
+  .slide-title::after { content: ''; position: absolute; bottom: -20%; left: 30%; width: 50vw; height: 50vw; background: radial-gradient(circle, rgba(255,165,2,0.08) 0%, transparent 70%); border-radius: 50%; animation: float2 18s ease-in-out infinite; }
+  @keyframes float1 { 0%, 100% { transform: translate(0,0); } 50% { transform: translate(-3%,5%); } }
+  @keyframes float2 { 0%, 100% { transform: translate(0,0); } 50% { transform: translate(4%,-3%); } }
+  .title-grid { display: grid; grid-template-columns: 1.1fr 1fr; width: 100%; height: 100vh; position: relative; z-index: 1; }
+  .title-text-col { padding: 8vh 4vw 8vh 8vw; display: flex; flex-direction: column; justify-content: center; position: relative; z-index: 2; }
+  .title-img-col  { position: relative; overflow: hidden; }
+  .title-label { font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem; font-weight: 500; letter-spacing: 0.35em; text-transform: uppercase; color: var(--accent2); margin-bottom: 2rem; }
+  .title-main { font-family: 'Space Grotesk', sans-serif; font-size: clamp(3rem,6vw,5.5rem); font-weight: 700; line-height: 1.05; letter-spacing: -0.03em; }
+  .title-main .highlight { background: var(--gradient-1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; background-size: 200% 200%; animation: shimmer 4s ease-in-out infinite; }
+  @keyframes shimmer { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+  .title-sub { font-size: 1.25rem; font-weight: 300; color: var(--text-secondary); margin-top: 2rem; max-width: 90%; line-height: 1.6; }
+  .title-meta { position: absolute; bottom: 5vh; left: 8vw; font-size: 0.8rem; color: var(--text-muted); letter-spacing: 0.15em; font-weight: 500; z-index: 2; }
+  .hero-scroll-hint { position: absolute; bottom: 4vh; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 0.4rem; z-index: 3; }
+  .hero-scroll-hint span { font-family: 'Space Grotesk'; font-size: 0.6rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--text-muted); }
+  .hero-scroll-hint .line { width: 1px; height: 40px; background: linear-gradient(to bottom, transparent, var(--accent)); animation: scrollHint 2.5s ease-in-out infinite; }
+  @keyframes scrollHint { 0% { transform: scaleY(0); transform-origin: top; } 50% { transform: scaleY(1); transform-origin: top; } 51% { transform-origin: bottom; } 100% { transform: scaleY(0); transform-origin: bottom; } }
+
+  /* ── DIPTYCH ── */
+  .diptych { display: grid; grid-template-columns: 1fr 1fr; gap: 0; height: 65vh; margin-top: 2rem; position: relative; border-radius: 8px; overflow: hidden; }
+  .diptych .img-wrap { height: 100%; }
+  .diptych::after { content: ''; position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background: rgba(255,255,255,0.12); z-index: 2; }
+
+  /* ── SCALE SLIDE ── */
+  .scale-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: center; margin-top: 2rem; }
+
+  /* ── PINNED HORIZONTAL FORMATS ── */
+  .pinned-formats { height: 100vh; overflow: hidden; padding: 0; }
+  .pinned-formats .h-track { display: flex; width: 400vw; height: 100vh; will-change: transform; }
+  .pinned-formats .h-panel { width: 100vw; height: 100vh; padding: 8vh 8vw 6vh; display: flex; flex-direction: column; justify-content: center; position: relative; }
+  .pinned-formats .h-panel:nth-child(odd)  { background: var(--bg-dark); }
+  .pinned-formats .h-panel:nth-child(even) { background: var(--bg-card); }
+  .pinned-formats .panel-header { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 1.25rem; }
+  .pinned-formats .panel-num { font-family: 'Space Grotesk'; font-size: 0.72rem; letter-spacing: 0.35em; color: var(--accent); font-weight: 600; }
+  .pinned-formats .panel-progress { flex: 1; height: 1px; background: rgba(255,255,255,0.08); position: relative; overflow: hidden; }
+  .pinned-formats .panel-progress::after { content: ''; position: absolute; left: 0; top: 0; height: 100%; width: var(--p, 0%); background: var(--gradient-3); }
+  .pinned-formats .panel-body-wrap { display: grid; grid-template-columns: 1.2fr 1.5fr; gap: 3rem; align-items: center; flex: 1; }
+  .pinned-formats .panel-text { max-width: 520px; }
+  .pinned-formats .mosaic { height: 60vh; border-radius: 4px; overflow: hidden; }
+  @media (max-width: 900px) {
+    .pinned-formats { height: auto; }
+    .pinned-formats .h-track { display: block; width: 100%; height: auto; transform: none !important; }
+    .pinned-formats .h-panel { width: 100%; height: auto; min-height: 100vh; padding: 10vh 6vw 6vh; }
+    .pinned-formats .panel-body-wrap { grid-template-columns: 1fr; }
+    .pinned-formats .mosaic { height: 50vh; grid-template-columns: 1fr !important; }
+  }
+
+  /* ── TARGET ── */
+  .target-layout { display: grid; grid-template-columns: 1fr 1fr; height: 100vh; }
+  .target-list { display: flex; flex-direction: column; gap: 1.2rem; margin-top: 1rem; }
+  .target-item { display: flex; align-items: flex-start; gap: 1rem; }
+  .target-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-top: 0.5rem; flex-shrink: 0; transition: transform 0.3s, box-shadow 0.3s; }
+  .target-item:hover .target-dot { transform: scale(1.8); box-shadow: 0 0 12px rgba(255,71,87,0.5); }
+  .target-item p { font-size: 0.95rem; color: var(--text-secondary); line-height: 1.6; font-weight: 300; }
+
+  /* ── COMPLIANCE (border-gradient on ::after, not ::before) ── */
+  .compliance-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem; margin-top: 2rem; }
+  .compliance-card {
+    position: relative; background: var(--bg-card); border-radius: 1rem; padding: 1.6rem;
+    border: 1px solid rgba(255,255,255,0.06);
+    overflow: hidden;
+    isolation: isolate; /* clean stacking context */
+  }
+  /* Rotating border-ring using ::after so it doesn't collide with .glow-card::before */
+  .compliance-card::after {
+    content: ''; position: absolute; inset: 0; border-radius: inherit;
+    padding: 1.5px;
+    background: conic-gradient(from var(--angle,0deg),
+      transparent 0deg,
+      var(--accent) 40deg,
+      var(--accent3) 80deg,
+      transparent 140deg,
+      transparent 360deg);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    opacity: 0; transition: opacity 0.4s;
+    z-index: 2; pointer-events: none;
+  }
+  .compliance-card:hover::after { opacity: 1; animation: rotateBorder 4s linear infinite; }
+  @keyframes rotateBorder { from { --angle: 0deg; } to { --angle: 360deg; } }
+  @property --angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+  .compliance-card-title { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 0.95rem; margin-bottom: 0.6rem; color: var(--accent3); position: relative; z-index: 3; }
+  .compliance-card-desc  { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.6; font-weight: 300; position: relative; z-index: 3; }
+  @media (max-width: 1100px) { .compliance-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 700px)  { .compliance-grid { grid-template-columns: 1fr; } }
+
+  /* ── CTA ── */
+  .slide-cta { background: var(--gradient-2); align-items: center; justify-content: center; padding: 0; position: relative; }
+  .cta-bg-img { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+  .cta-bg-img img { width: 100%; height: 100%; object-fit: cover; opacity: 0.35; filter: blur(1px) saturate(1.2); }
+  .cta-bg-img::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 0%, rgba(10,10,15,0.6) 50%, rgba(10,10,15,0.95) 90%); }
+  .cta-content { position: relative; z-index: 2; text-align: center; padding: 5vh 8vw; max-width: 1100px; }
+  .slide-cta::before { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 60vw; height: 60vw; background: radial-gradient(circle, rgba(255,71,87,0.1) 0%, transparent 60%); border-radius: 50%; animation: pulse 6s ease-in-out infinite; z-index: 1; }
+  @keyframes pulse { 0%, 100% { transform: translate(-50%,-50%) scale(1); opacity: 0.5; } 50% { transform: translate(-50%,-50%) scale(1.1); opacity: 1; } }
+  .cta-title { font-family: 'Space Grotesk', sans-serif; font-size: clamp(2.5rem,4.5vw,4.5rem); font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
+  .cta-body { font-size: 1.05rem; color: var(--text-secondary); line-height: 1.7; max-width: 620px; margin: 1.5rem auto 0; font-weight: 300; }
+  .cta-badge { display: inline-block; margin-top: 2rem; padding: 0.9rem 2.5rem; border: 1px solid var(--accent); border-radius: 3rem; font-family: 'Space Grotesk', sans-serif; font-size: 0.8rem; font-weight: 500; letter-spacing: 0.2em; color: var(--accent2); transition: all 0.4s; background: transparent; will-change: transform; }
+  .cta-badge:hover { background: rgba(255,71,87,0.15); box-shadow: 0 0 30px rgba(255,71,87,0.3); }
+
+  /* ── PARTICLES ── */
+  .particle { position: fixed; width: 3px; height: 3px; background: var(--accent); border-radius: 50%; pointer-events: none; z-index: 0; opacity: 0; animation: particleFloat linear infinite; }
+  @keyframes particleFloat { 0% { opacity: 0; transform: translateY(100vh) scale(0); } 10% { opacity: 0.4; } 90% { opacity: 0.4; } 100% { opacity: 0; transform: translateY(-10vh) scale(1); } }
+
+  /* ── LIGHTBOX (solid bg to prevent content flash) ── */
+  .lightbox {
+    position: fixed; inset: 0;
+    background: rgba(5,5,8,0.97);
+    backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+    z-index: 11000;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 5vh 6vw;
+  }
+  .lightbox.open { display: flex; }
+  .lightbox-stage { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .lightbox-stage img {
+    max-width: 100%; max-height: 100%; object-fit: contain;
+    box-shadow: 0 0 80px rgba(0,0,0,0.8); border-radius: 4px;
+    position: absolute; will-change: transform, opacity;
+  }
+  .lightbox-close, .lightbox-prev, .lightbox-next {
+    position: fixed; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14);
+    color: #fff; width: 52px; height: 52px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    font-size: 1.3rem; font-family: inherit; z-index: 11010;
+    transition: background 0.25s, border-color 0.25s, transform 0.25s;
+  }
+  .lightbox-close:hover, .lightbox-prev:hover, .lightbox-next:hover {
+    background: var(--accent); border-color: var(--accent); transform: scale(1.08);
+  }
+  .lightbox-close { top: 1.5rem; right: 1.5rem; }
+  .lightbox-prev  { left: 1.5rem; top: 50%; transform: translateY(-50%); }
+  .lightbox-prev:hover { transform: translateY(-50%) scale(1.08); }
+  .lightbox-next  { right: 1.5rem; top: 50%; transform: translateY(-50%); }
+  .lightbox-next:hover { transform: translateY(-50%) scale(1.08); }
+  .lightbox-counter { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%); font-family: 'Space Grotesk'; font-size: 0.72rem; letter-spacing: 0.28em; color: rgba(255,255,255,0.6); text-transform: uppercase; z-index: 11010; }
+
+  /* ── SLIDE 5 pill/counter ── */
+  .highlight-pill { display: inline-block; padding: 0.4rem 1rem; border-radius: 2rem; background: rgba(255,165,2,0.12); border: 1px solid rgba(255,165,2,0.3); color: var(--accent3); font-weight: 600; font-size: 1rem; margin: 0 0.25rem; }
+  .counter-num { font-family: 'Space Grotesk'; font-weight: 700; color: var(--accent3); display: inline-block; min-width: 1.5ch; }
+
+  /* ── PRINT ── */
+  @media print {
+    .slide { page-break-after: always; page-break-inside: avoid; height: auto; min-height: 100vh; }
+    .nav-dots, .progress-ring, .particle, #webgl-bg, .bg-gradient-animated, .grain, .cursor-dot, .cursor-ring, .cursor-label, .top-brand, .hero-scroll-hint { display: none !important; }
+    .pinned-formats { height: auto; }
+    .pinned-formats .h-track { display: block; width: 100%; transform: none !important; }
+    .pinned-formats .h-panel { width: 100%; height: auto; min-height: 100vh; }
+    .two-col, .title-grid, .target-layout { display: grid !important; }
+    body { cursor: auto; }
+    @page { size: landscape; margin: 0; }
+  }
+
+  /* ── MOBILE ── */
+  @media (max-width: 900px) {
+    .slide { height: auto; min-height: 100vh; }
+    .two-col, .title-grid, .scale-layout, .target-layout { grid-template-columns: 1fr !important; height: auto; }
+    .col-text, .title-text-col { padding: 10vh 6vw 4vh; }
+    .col-img, .title-img-col { height: 55vh; }
+    .diptych { grid-template-columns: 1fr; height: auto; }
+    .diptych .img-wrap { height: 45vh; }
+    .diptych::after { display: none; }
+    .mosaic-3, .mosaic-2 { grid-template-columns: 1fr; height: auto; }
+    .mosaic-3 .img-wrap, .mosaic-2 .img-wrap { height: 40vh; }
+    .collage { height: 70vh; }
+    .collage .img-wrap { position: relative !important; width: 48% !important; height: 30% !important; top: auto !important; left: auto !important; right: auto !important; bottom: auto !important; display: inline-block; margin: 4px; transform: none !important; }
+    .title-main { font-size: clamp(2rem, 8vw, 3.2rem); }
+    .title-main .line-inner { white-space: normal; }
+    .title-sub { max-width: 100%; }
+    .marquee-v { height: 60vh; }
+    .marquee-v-track .img-wrap { height: 24vh; }
+    .top-brand { top: 0.9rem; left: 1rem; }
+    .progress-ring { top: 0.9rem; right: 0.9rem; width: 44px; height: 44px; }
+    body { cursor: auto !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Static gradient fallback (behind WebGL) -->
+<div class="bg-gradient-animated"></div>
+<!-- WebGL shader canvas -->
+<canvas id="webgl-bg" aria-hidden="true"></canvas>
+
+<!-- Grain overlay -->
+<div class="grain"></div>
+
+<!-- Top-left: studio brand + CONFIDENTIAL -->
+<div class="top-brand" aria-hidden="true">
+  <div class="brand-name">smatana<span class="dot">.</span></div>
+  <div class="confidential">Confidential · Internal Use Only</div>
+</div>
+
+<!-- Progress ring -->
+<div class="progress-ring" aria-hidden="true">
+  <svg viewBox="0 0 60 60">
+    <defs>
+      <linearGradient id="pgrad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%"  stop-color="#ff4757"/>
+        <stop offset="50%" stop-color="#ff6b81"/>
+        <stop offset="100%" stop-color="#ffa502"/>
+      </linearGradient>
+    </defs>
+    <circle class="track" cx="30" cy="30" r="26"/>
+    <circle class="bar"   cx="30" cy="30" r="26" id="pgBar"/>
+  </svg>
+  <div class="progress-ring-counter">
+    <span id="pgCur">01</span><span class="sep">&nbsp;/&nbsp;</span><span class="total" id="pgTot">09</span>
+  </div>
+</div>
+
+<!-- Particles -->
+<div id="particles"></div>
+
+<!-- Nav dots -->
+<nav class="nav-dots" id="navDots">
+  <a href="#s1"  data-label="Intro"></a>
+  <a href="#s2"  data-label="About"></a>
+  <a href="#s3"  data-label="What we do"></a>
+  <a href="#s4"  data-label="Principle"></a>
+  <a href="#s5"  data-label="Scale"></a>
+  <a href="#s6"  data-label="Formats"></a>
+  <a href="#s10" data-label="Target"></a>
+  <a href="#s11" data-label="Compliance"></a>
+  <a href="#s12" data-label="Next steps"></a>
+</nav>
+
+<!-- Custom cursor -->
+<div class="cursor-ring" id="cursorRing"></div>
+<div class="cursor-dot"  id="cursorDot"></div>
+<div class="cursor-label" id="cursorLabel">VIEW</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true">
+  <div class="lightbox-stage" id="lbStage"></div>
+  <button class="lightbox-close" id="lbClose" aria-label="Close">✕</button>
+  <button class="lightbox-prev"  id="lbPrev"  aria-label="Previous">‹</button>
+  <button class="lightbox-next"  id="lbNext"  aria-label="Next">›</button>
+  <div class="lightbox-counter" id="lbCounter"></div>
+</div>
+
+
+<!-- ══ 1 TITLE ══ -->
+<section class="slide slide-title" id="s1" data-nav="1">
+  <div class="title-grid">
+    <div class="title-text-col">
+      <span class="title-label" data-split-words>Concept Document · April 2026 · Draft</span>
+      <h1 class="title-main">
+        <span class="line-mask"><span class="line-inner hl-line-1"><span class="highlight">Impossible Objects</span></span></span><br>
+        <span class="line-mask"><span class="line-inner hl-line-2" data-split-chars>in a normal world</span></span>
+      </h1>
+      <p class="title-sub" data-split-words>A creative studio for AI video ads that change how people see products through a change of scale.</p>
+    </div>
+    <div class="title-img-col">
+      <div class="img-wrap img-edge-bleed hero-img" data-parallax="0.1" data-lightbox>
+        <img src="IMG_0642.PNG" alt="Hero visual">
+        <div class="img-caption">01 · Hero</div>
+      </div>
+    </div>
+  </div>
+  <div class="title-meta">AI VIDEO PRODUCTION STUDIO</div>
+  <div class="hero-scroll-hint"><span>Scroll</span><div class="line"></div></div>
+</section>
+
+
+<!-- ══ 2 ABOUT ══ -->
+<section class="slide" id="s2" data-nav="2" style="background:var(--bg-dark);">
+  <div class="two-col">
+    <div class="col-text">
+      <span class="section-label" data-reveal>About this document</span>
+      <h2 class="section-title" data-split-words>Creative and business concept of the studio.</h2>
+      <div class="section-body" data-reveal>
+        <p>This document describes the creative and business concept of an AI video production studio. We create short ad videos using generative AI for brands that want visually amazing social media content without the high cost of traditional production.</p>
+      </div>
+    </div>
+    <div class="col-img col-img-right">
+      <div class="img-wrap img-full-bleed" data-parallax="0.08" data-lightbox>
+        <img src="xd.jpg" alt="">
+        <div class="img-caption">02 · Concept</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══ 3 WHAT WE DO ══ -->
+<section class="slide" id="s3" data-nav="3" style="background:var(--bg-card);">
+  <div class="two-col">
+    <div class="col-img col-img-left">
+      <div class="img-wrap img-masked" data-parallax="0.08" data-lightbox>
+        <img src="Screenshot 2025-07-10 111647.png" alt="">
+        <div class="img-caption">03 · Reinterpretation</div>
+      </div>
+    </div>
+    <div class="col-text">
+      <span class="section-label" data-reveal>What we do</span>
+      <h2 class="section-title" data-split-words>We don't make videos. <span style="color:var(--accent2);">We develop the way people look at products.</span></h2>
+      <div class="section-body" data-reveal>
+        <p>Our true skill is the creative re-interpretation of a product. Technology (AI models) changes every three months. Our creative system of thinking does not.</p>
+        <p><strong style="color:var(--accent3)">Technology can be replaced. A creative system cannot.</strong></p>
+        <p>And we license that system to companies.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══ 4 PRINCIPLE ══ -->
+<section class="slide" id="s4" data-nav="4" style="background:var(--bg-dark); flex-direction:column; justify-content:center; padding:6vh 8vw;">
+  <span class="section-label" data-reveal>Basic principle</span>
+  <h2 class="section-title" data-split-words>One impossible element in an otherwise <span style="color:var(--accent);">normal world</span>.</h2>
+  <div class="section-body" data-reveal style="max-width:900px; margin-bottom:2rem;">
+    <p>A real street, real people, real lighting — and one thing that doesn't belong. A croissant instead of a roof on a Parisian building. A giant ice cream being studied by a man in a suit. Broccoli instead of trees on a boulevard.</p>
+    <p>This is the <strong style="color:var(--accent2)">Magritte principle</strong>: the more normal the surroundings are, the stronger the surreal element is. If there are too many impossible elements, the effect is lost because there is no contrast.</p>
+  </div>
+  <div class="diptych">
+    <div class="img-wrap" data-parallax="0.04" data-lightbox>
+      <img src="IMG_0638.PNG" alt="">
+      <div class="img-caption">04A · Element A</div>
+    </div>
+    <div class="img-wrap" data-parallax="0.04" data-lightbox>
+      <img src="Screenshot 2025-07-09 at 21.06.59.png" alt="">
+      <div class="img-caption">04B · Element B</div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══ 5 SCALE ══ -->
+<section class="slide" id="s5" data-nav="5" style="background:var(--bg-card); flex-direction:column; justify-content:center; padding:6vh 8vw;">
+  <span class="section-label" data-reveal>How it works</span>
+  <h2 class="section-title" data-split-words>Change of <span style="color:var(--accent3);">scale</span> = change of <span style="color:var(--accent);">value</span>.</h2>
+  <div class="scale-layout">
+    <div>
+      <div class="section-body" data-reveal style="max-width:100%;">
+        <p>We change the size of the product — and by doing that, we change the relationship between the person and the product.</p>
+        <p>When you look at something at a different scale, you see it differently. When you see it differently, you give it a different value.</p>
+        <p style="margin-top:1.5rem; color:var(--text-primary); font-weight:500; font-size:1.1rem;">
+          A croissant costs <span class="counter-num" data-counter="80">0</span> cents.<br>
+          But a building that <em>is</em> a croissant? <span class="highlight-pill">That is a monument.</span>
+        </p>
+        <p style="margin-top:1.2rem;"><strong style="color:var(--accent)">We sell a change of perspective through a change of scale.</strong></p>
+      </div>
+    </div>
+    <div class="marquee-v">
+      <div class="marquee-v-track">
+        <div class="img-wrap" data-lightbox><img src="IMG_0906.PNG" alt=""><div class="img-caption">05A</div></div>
+        <div class="img-wrap" data-lightbox><img src="IMG_0653.PNG" alt=""><div class="img-caption">05B</div></div>
+        <div class="img-wrap" data-lightbox><img src="IMG_0828.PNG" alt=""><div class="img-caption">05C</div></div>
+        <div class="img-wrap" data-lightbox data-lb-skip><img src="IMG_0906.PNG" alt="" aria-hidden="true"></div>
+        <div class="img-wrap" data-lightbox data-lb-skip><img src="IMG_0653.PNG" alt="" aria-hidden="true"></div>
+        <div class="img-wrap" data-lightbox data-lb-skip><img src="IMG_0828.PNG" alt="" aria-hidden="true"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══ 6-9 PINNED HORIZONTAL FORMATS ══ -->
+<section class="slide pinned-formats" id="s6" data-nav="6">
+  <div class="h-track" id="hTrack">
+
+    <div class="h-panel" id="s6a">
+      <div class="panel-header">
+        <span class="panel-num">FORMAT 01 / 04</span>
+        <div class="panel-progress" style="--p:25%"></div>
+      </div>
+      <h2 class="section-title panel-title" data-panel-title>Product as <span style="color:var(--accent);">architecture</span>.</h2>
+      <div class="panel-body-wrap">
+        <div class="panel-text">
+          <div class="section-body panel-body">
+            <p>A world where buildings are made of the material they sell. A chocolate shop with a facade of flowing chocolate. A bakery with a croissant roof. This includes natural space for branding — signs on the building, windows, and doors are perfect places for a client logo.</p>
+          </div>
+        </div>
+        <div class="mosaic mosaic-3">
+          <div class="img-wrap" data-lightbox><img src="Screenshot 2025-07-10 101115.png" alt=""><div class="img-caption">A1</div></div>
+          <div class="img-wrap" data-lightbox><img src="o13s__Melted_chocolate_coming_out_of_a_chocolate_shop_ground_wi_37cbe5c6-aa84-49ce-a3e6-ca99d2e92c3d.png" alt=""><div class="img-caption">A2</div></div>
+          <div class="img-wrap" data-lightbox><img src="Screenshot 2025-07-09 at 21.10.52.png" alt=""><div class="img-caption">A3</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="h-panel" id="s7">
+      <div class="panel-header">
+        <span class="panel-num">FORMAT 02 / 04</span>
+        <div class="panel-progress" style="--p:50%"></div>
+      </div>
+      <h2 class="section-title panel-title" data-panel-title>Product as a <span style="color:var(--accent3);">mobile shop</span>.</h2>
+      <div class="panel-body-wrap">
+        <div class="panel-text">
+          <div class="section-body panel-body">
+            <p>The product grows into a giant version of itself and becomes a mobile store. The shop comes to you; you don't go to it. A mobile shop is an event — it has movement, surprise, and a story built in.</p>
+          </div>
+        </div>
+        <div class="mosaic mosaic-3">
+          <div class="img-wrap" data-lightbox><img src="Screenshot 2025-07-10 101104.png" alt=""><div class="img-caption">B1</div></div>
+          <div class="img-wrap" data-lightbox><img src="Screenshot 2025-07-10 095814.png" alt=""><div class="img-caption">B2</div></div>
+          <div class="img-wrap" data-lightbox><img src="Screenshot 2025-07-10 112222.png" alt=""><div class="img-caption">B3</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="h-panel" id="s8">
+      <div class="panel-header">
+        <span class="panel-num">FORMAT 03 / 04</span>
+        <div class="panel-progress" style="--p:75%"></div>
+      </div>
+      <h2 class="section-title panel-title" data-panel-title>Product as an <span style="color:var(--accent2);">object of study</span>.</h2>
+      <div class="panel-body-wrap">
+        <div class="panel-text">
+          <div class="section-body panel-body">
+            <p>A man in a suit — an expert or inspector — studies the giant product. Serious and respectful. The product is so special that it deserves expert study, like a rare artifact. This communicates quality without words.</p>
+          </div>
+        </div>
+        <div class="mosaic mosaic-2">
+          <div class="img-wrap" data-lightbox><img src="IMG_0903.PNG" alt=""><div class="img-caption">C1</div></div>
+          <div class="img-wrap" data-lightbox><img src="Screenshot 2025-07-10 110854.png" alt=""><div class="img-caption">C2</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="h-panel" id="s9">
+      <div class="panel-header">
+        <span class="panel-num">FORMAT 04 / 04</span>
+        <div class="panel-progress" style="--p:100%"></div>
+      </div>
+      <h2 class="section-title panel-title" data-panel-title>Product as a <span style="color:var(--accent3);">landscape</span>.</h2>
+      <div class="panel-body-wrap" style="grid-template-columns:1fr 1.6fr;">
+        <div class="panel-text">
+          <div class="section-body panel-body">
+            <p>The product becomes part of the environment — broccoli instead of trees, ice cream instead of traffic lights, bread instead of a train. This turns the product into a world. It works best for products with iconic shapes: bottles, bags, shoes, perfume flacons.</p>
+          </div>
+        </div>
+        <div class="collage" id="collage9">
+          <div class="img-wrap" data-lightbox style="width:42%; height:52%; top:0; left:0; transform:rotate(-3deg);"><img src="IMG_0828.PNG" alt=""></div>
+          <div class="img-wrap" data-lightbox style="width:38%; height:45%; top:8%; left:38%; transform:rotate(2deg);"><img src="Screenshot 2025-07-09 at 21.05.07.png" alt=""></div>
+          <div class="img-wrap" data-lightbox style="width:34%; height:48%; top:2%; right:0; transform:rotate(-1deg);"><img src="Screenshot 2025-07-09 at 21.06.23.png" alt=""></div>
+          <div class="img-wrap" data-lightbox style="width:44%; height:50%; bottom:0; left:10%; transform:rotate(1.5deg);"><img src="Screenshot 2025-07-09 at 21.06.41.png" alt=""></div>
+          <div class="img-wrap" data-lightbox style="width:36%; height:42%; bottom:4%; left:52%; transform:rotate(-2deg);"><img src="Screenshot 2025-07-09 at 21.06.50.png" alt=""></div>
+          <div class="img-wrap" data-lightbox style="width:30%; height:40%; bottom:10%; right:2%; transform:rotate(3deg);"><img src="Screenshot 2025-07-10 103822.png" alt=""></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ══ 10 TARGET ══ -->
+<section class="slide" id="s10" data-nav="10" style="background:var(--bg-dark);">
+  <div class="target-layout">
+    <div class="col-text">
+      <span class="section-label" data-reveal>Who is it for?</span>
+      <h2 class="section-title" data-split-words>Target market.</h2>
+      <div class="target-list">
+        <div class="target-item" data-reveal>
+          <div class="target-dot"></div>
+          <p><strong style="color:var(--accent)">Primary market:</strong> Small and medium businesses in food, fashion, and lifestyle that need exceptional visual content for social media but don't have the budget for classic production.</p>
+        </div>
+        <div class="target-item" data-reveal>
+          <div class="target-dot"></div>
+          <p><strong style="color:var(--accent3)">Secondary market:</strong> Ad agencies looking for fast and affordable solutions for their clients' campaigns.</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-img col-img-right">
+      <div class="img-wrap img-full-bleed" data-parallax="0.08" data-lightbox>
+        <img src="Screenshot 2025-07-09 at 21.06.32.png" alt="">
+        <div class="img-caption">10 · Target market</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══ 11 COMPLIANCE ══ -->
+<section class="slide" id="s11" data-nav="11" style="background:var(--bg-dark); flex-direction:column; justify-content:center; padding:6vh 8vw;">
+  <span class="section-label" data-reveal>Compliance as a Service</span>
+  <h2 class="section-title" data-split-words>Legal safety and <span style="color:var(--accent3);">IP</span> protection.</h2>
+  <div class="section-body" data-reveal style="max-width:800px; margin-bottom:1.5rem;">
+    <p>Our offer includes a package of services that guarantees legal safety and the protection of intellectual property beyond standard production. Designed for clients who need to follow ESG rules and EU legislation.</p>
+  </div>
+  <div class="compliance-grid">
+    <div class="compliance-card tilt-card glow-card" data-reveal>
+      <div class="compliance-card-title">Licensing Certification</div>
+      <div class="compliance-card-desc">We use only "Enterprise-safe" AI tools where the provider takes legal responsibility for training data. The client receives direct legal indemnity in case of copyright disputes.</div>
+    </div>
+    <div class="compliance-card tilt-card glow-card" data-reveal>
+      <div class="compliance-card-title">IP Validation</div>
+      <div class="compliance-card-desc">Full documentation of the "human-in-the-loop" process — storyboards, prompt development, post-production. Proves that AI was used as a tool under human direction, and the output is the client's own IP.</div>
+    </div>
+    <div class="compliance-card tilt-card glow-card" data-reveal>
+      <div class="compliance-card-title">Content Credentials (C2PA)</div>
+      <div class="compliance-card-desc">Cryptographic metadata embedded in the master files — a digital "birth certificate" for every output. Transparency for consumers and compatibility with platforms like Meta, YouTube and TikTok.</div>
+    </div>
+    <div class="compliance-card tilt-card glow-card" data-reveal>
+      <div class="compliance-card-title">Digital Notarization</div>
+      <div class="compliance-card-desc">SHA-256 hash of the final video recorded in the delivery protocol. Protection against deepfakes and unauthorized edits. If your ad is manipulated, you can instantly prove which file is the original.</div>
+    </div>
+    <div class="compliance-card tilt-card glow-card" data-reveal>
+      <div class="compliance-card-title">EU AI Act Audit</div>
+      <div class="compliance-card-desc">Assessment of labelling obligations and rollout of the required disclosures under the current regulation. Prevents fines for insufficient labelling of synthetic content.</div>
+    </div>
+    <div class="compliance-card tilt-card glow-card" data-reveal>
+      <div class="compliance-card-title">Source Data Archive</div>
+      <div class="compliance-card-desc">Handover of a locked archive (prompts, seed values, reference inputs) with a 6-month guarantee for legislative updates. If the rules change, we update the metadata in master files free of charge.</div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══ 12 CTA ══ -->
+<section class="slide slide-cta" id="s12" data-nav="12">
+  <div class="cta-bg-img">
+    <img src="IMG_0903.PNG" alt="">
+  </div>
+  <div class="cta-content">
+    <span class="section-label" data-reveal style="color:var(--accent2)">Next steps</span>
+    <h1 class="cta-title" data-split-words>One impossible element. <span style="color:var(--accent3);">Infinite possibilities.</span></h1>
+    <p class="cta-body" data-reveal>If you have a product with an iconic shape and want content people stop scrolling for — get in touch. We'll show you a world where your product is that one impossible thing.</p>
+    <div style="margin-top:2rem;">
+      <button class="cta-badge magnetic" data-reveal>AI VIDEO PRODUCTION STUDIO · APRIL 2026 · DRAFT</button>
+    </div>
+  </div>
+</section>
+
+
+<script>
+/* ════════════════════════════════════════════════════════════════════
+   UTILITIES — aspect detect, splitters
+   ═══════════════════════════════════════════════════════════════════ */
+function tagImageAspect(img) {
+  const apply = () => {
+    const w = img.naturalWidth, h = img.naturalHeight;
+    if (!w || !h) return;
+    const r = w / h;
+    const wrap = img.closest('.img-wrap');
+    if (!wrap) return;
+    wrap.classList.remove('is-portrait','is-landscape','is-square');
+    if (r < 0.85) wrap.classList.add('is-portrait');
+    else if (r > 1.25) wrap.classList.add('is-landscape');
+    else wrap.classList.add('is-square');
+  };
+  if (img.complete) apply(); else img.addEventListener('load', apply, { once: true });
+}
+document.querySelectorAll('.img-wrap img').forEach(tagImageAspect);
+
+function splitWords(el) {
+  const nodes = [...el.childNodes];
+  el.innerHTML = '';
+  nodes.forEach(node => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const parts = node.nodeValue.split(/(\s+)/);
+      parts.forEach(p => {
+        if (!p) return;
+        if (/^\s+$/.test(p)) { el.appendChild(document.createTextNode(p)); return; }
+        const wrap = document.createElement('span');
+        wrap.className = 'split-word';
+        const inner = document.createElement('span');
+        inner.textContent = p;
+        wrap.appendChild(inner);
+        el.appendChild(wrap);
+      });
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      splitWords(node);
+      el.appendChild(node);
+    }
+  });
+}
+function splitChars(el) {
+  const walk = (n) => {
+    [...n.childNodes].forEach(c => {
+      if (c.nodeType === Node.TEXT_NODE) {
+        const frag = document.createDocumentFragment();
+        [...c.nodeValue].forEach(ch => {
+          if (ch === ' ') { frag.appendChild(document.createTextNode(' ')); return; }
+          const s = document.createElement('span');
+          s.className = 'split-char';
+          s.textContent = ch;
+          frag.appendChild(s);
+        });
+        c.parentNode.replaceChild(frag, c);
+      } else if (c.nodeType === Node.ELEMENT_NODE) {
+        walk(c);
+      }
+    });
+  };
+  walk(el);
+}
+document.querySelectorAll('[data-split-words]').forEach(splitWords);
+document.querySelectorAll('[data-split-chars]').forEach(splitChars);
+
+
+/* ════════════════════════════════════════════════════════════════════
+   WEBGL SHADER BACKGROUND (Three.js)
+   Ambient flowing noise, very subtle, mouse-reactive.
+   Falls back silently if WebGL unavailable.
+   ═══════════════════════════════════════════════════════════════════ */
+(function webglBg() {
+  const canvas = document.getElementById('webgl-bg');
+  if (!canvas || !window.THREE) return;
+
+  let gl;
+  try { gl = canvas.getContext('webgl', { antialias: false, alpha: true }) || canvas.getContext('experimental-webgl'); }
+  catch (e) { return; }
+  if (!gl) return;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+  const uniforms = {
+    u_time:  { value: 0 },
+    u_res:   { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+    u_mouse: { value: new THREE.Vector2(0.5 * window.innerWidth, 0.5 * window.innerHeight) },
+    u_scroll:{ value: 0 },
+  };
+
+  const material = new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader: `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = vec4(position, 1.0); }
+    `,
+    fragmentShader: `
+      precision highp float;
+      uniform float u_time;
+      uniform vec2  u_res;
+      uniform vec2  u_mouse;
+      uniform float u_scroll;
+      varying vec2  vUv;
+
+      vec2 hash2(vec2 p) {
+        p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+        return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
+      }
+      float noise(vec2 p) {
+        vec2 i = floor(p), f = fract(p);
+        vec2 u = f * f * (3.0 - 2.0 * f);
+        return mix(mix(dot(hash2(i + vec2(0,0)), f - vec2(0,0)),
+                       dot(hash2(i + vec2(1,0)), f - vec2(1,0)), u.x),
+                   mix(dot(hash2(i + vec2(0,1)), f - vec2(0,1)),
+                       dot(hash2(i + vec2(1,1)), f - vec2(1,1)), u.x), u.y);
+      }
+      float fbm(vec2 p) {
+        float f = 0.0;
+        f += 0.500 * noise(p); p *= 2.02;
+        f += 0.250 * noise(p); p *= 2.03;
+        f += 0.125 * noise(p);
+        return f;
+      }
+
+      void main() {
+        vec2 uv = vUv;
+        vec2 p = uv;
+        p.x *= u_res.x / u_res.y;
+
+        float t = u_time * 0.06 + u_scroll * 0.0005;
+        vec2 q = p * 1.6 + vec2(t, t * 0.7);
+        float n = fbm(q);
+        n = n * 0.5 + 0.5;
+
+        // subtle swirl
+        float n2 = fbm(p * 2.4 - vec2(t * 1.3, -t));
+        n = mix(n, n2, 0.4);
+
+        vec3 c1 = vec3(0.040, 0.040, 0.060);   // base dark
+        vec3 c2 = vec3(1.000, 0.280, 0.340);   // red
+        vec3 c3 = vec3(1.000, 0.420, 0.510);   // pink
+        vec3 c4 = vec3(1.000, 0.650, 0.010);   // orange
+
+        vec3 col = c1;
+        col = mix(col, c2, smoothstep(0.35, 0.78, n) * 0.13);
+        col = mix(col, c4, smoothstep(0.62, 0.95, n) * 0.08);
+        col = mix(col, c3, smoothstep(0.50, 0.80, 1.0 - n) * 0.05);
+
+        // mouse glow
+        vec2 m = u_mouse / u_res;
+        m.x *= u_res.x / u_res.y;
+        float d = length(p - m);
+        float glow = smoothstep(0.55, 0.0, d) * 0.09;
+        col += vec3(glow, glow * 0.45, glow * 0.12);
+
+        // slight vignette
+        float vg = smoothstep(1.05, 0.35, length(uv - 0.5));
+        col *= mix(0.7, 1.0, vg);
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `,
+  });
+
+  const geo = new THREE.PlaneGeometry(2, 2);
+  const mesh = new THREE.Mesh(geo, material);
+  scene.add(mesh);
+
+  let mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
+  let tMouseX = mouseX, tMouseY = mouseY;
+  window.addEventListener('mousemove', e => { tMouseX = e.clientX; tMouseY = e.clientY; });
+  window.addEventListener('resize', () => {
+    renderer.setSize(window.innerWidth, window.innerHeight, false);
+    uniforms.u_res.value.set(window.innerWidth, window.innerHeight);
+  });
+
+  const startTime = performance.now();
+  function render() {
+    mouseX += (tMouseX - mouseX) * 0.08;
+    mouseY += (tMouseY - mouseY) * 0.08;
+    uniforms.u_time.value = (performance.now() - startTime) / 1000;
+    uniforms.u_mouse.value.set(mouseX, window.innerHeight - mouseY);
+    uniforms.u_scroll.value = window.scrollY;
+    renderer.render(scene, camera);
+    requestAnimationFrame(render);
+  }
+  render();
+})();
+
+
+/* ════════════════════════════════════════════════════════════════════
+   LENIS SMOOTH SCROLL
+   ═══════════════════════════════════════════════════════════════════ */
+let lenis;
+if (window.Lenis) {
+  lenis = new Lenis({
+    duration: 1.2,
+    easing: t => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+    smoothWheel: true,
+    smoothTouch: false,
+  });
+  function raf(time) { lenis.raf(time); requestAnimationFrame(raf); }
+  requestAnimationFrame(raf);
+  if (window.ScrollTrigger) {
+    lenis.on('scroll', ScrollTrigger.update);
+    gsap.ticker.add(t => lenis.raf(t * 1000));
+    gsap.ticker.lagSmoothing(0);
+  }
+}
+
+
+/* ════════════════════════════════════════════════════════════════════
+   GSAP ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════ */
+if (window.gsap && window.ScrollTrigger) {
+  gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
+
+  /* ── HERO INTRO — no blur on gradient text, no char-split on highlighted line ── */
+  const heroTL = gsap.timeline({ delay: 0.2, defaults: { ease: 'power3.out' } });
+
+  // Set starting states explicitly to avoid FOUC of elements that are about to animate in
+  gsap.set('#s1 .title-label .split-word > span', { yPercent: 120, opacity: 0 });
+  gsap.set('#s1 .hl-line-1', { yPercent: 110, opacity: 0 });
+  gsap.set('#s1 .hl-line-2 .split-char', { yPercent: 120, opacity: 0 });
+  gsap.set('#s1 .title-sub .split-word > span', { yPercent: 120, opacity: 0 });
+  gsap.set('#s1 .title-meta, #s1 .hero-scroll-hint', { opacity: 0 });
+  gsap.set('#s1 .hero-img img', { scale: 1.18, opacity: 0 });
+
+  heroTL
+    .to('#s1 .title-label .split-word > span', { yPercent: 0, opacity: 1, stagger: 0.025, duration: 0.8 }, 0)
+    .to('#s1 .hl-line-1', { yPercent: 0, opacity: 1, duration: 1.1 }, 0.15)
+    .to('#s1 .hl-line-2 .split-char', { yPercent: 0, opacity: 1, stagger: 0.025, duration: 0.9 }, 0.45)
+    .to('#s1 .title-sub .split-word > span', { yPercent: 0, opacity: 1, stagger: 0.015, duration: 0.7 }, 0.9)
+    .to('#s1 .title-meta', { opacity: 1, duration: 0.7 }, 1.1)
+    .to('#s1 .hero-scroll-hint', { opacity: 1, duration: 0.5 }, 1.3)
+    .to('#s1 .hero-img img', { scale: 1, opacity: 1, duration: 1.6, ease: 'power2.out' }, 0);
+
+  /* ── DATA-REVEAL ── */
+  gsap.utils.toArray('[data-reveal]').forEach(el => {
+    gsap.from(el, {
+      y: 50, opacity: 0, duration: 0.9, ease: 'power3.out',
+      scrollTrigger: { trigger: el, start: 'top 85%', toggleActions: 'play none none none' }
+    });
+  });
+
+  /* ── SECTION TITLES (skip hero + panel titles, they're handled separately) ── */
+  gsap.utils.toArray('h2.section-title[data-split-words], h1.cta-title[data-split-words]').forEach(title => {
+    if (title.closest('#s1')) return;
+    if (title.closest('.pinned-formats')) return;
+    const words = title.querySelectorAll('.split-word > span');
+    if (!words.length) return;
+    gsap.from(words, {
+      yPercent: 120, opacity: 0, stagger: 0.04, duration: 0.9, ease: 'power3.out',
+      scrollTrigger: { trigger: title, start: 'top 82%', toggleActions: 'play none none none' }
+    });
+  });
+
+  /* ── BODY paragraphs ── */
+  gsap.utils.toArray('.section-body[data-reveal] p').forEach(p => {
+    if (p.closest('.pinned-formats')) return;
+    gsap.from(p, {
+      y: 30, opacity: 0, duration: 0.9, ease: 'power3.out',
+      scrollTrigger: { trigger: p, start: 'top 88%', toggleActions: 'play none none none' }
+    });
+  });
+
+  /* ── IMAGE REVEAL (clip-path sweep) ── */
+  gsap.utils.toArray('.img-wrap').forEach(wrap => {
+    if (wrap.closest('#s1')) return;
+    if (wrap.closest('.marquee-v')) return;
+    if (wrap.closest('.collage')) return;
+    gsap.from(wrap, {
+      clipPath: 'inset(0 100% 0 0)',
+      duration: 1.1, ease: 'expo.out',
+      scrollTrigger: { trigger: wrap, start: 'top 88%', toggleActions: 'play none none none' }
+    });
+  });
+
+  /* ── PARALLAX ── */
+  gsap.utils.toArray('[data-parallax]').forEach(el => {
+    const amt = parseFloat(el.dataset.parallax) || 0.08;
+    const img = el.querySelector('img') || el;
+    gsap.to(img, {
+      yPercent: -amt * 100, ease: 'none',
+      scrollTrigger: { trigger: el, start: 'top bottom', end: 'bottom top', scrub: true }
+    });
+  });
+
+  /* ── PINNED HORIZONTAL FORMATS ── */
+  const track = document.getElementById('hTrack');
+  const panels = track ? track.querySelectorAll('.h-panel') : [];
+  if (track && panels.length && window.matchMedia('(min-width: 901px)').matches) {
+    const totalScroll = () => (panels.length - 1) * window.innerWidth;
+    const pinTween = gsap.to(track, {
+      x: () => -totalScroll(),
+      ease: 'none',
+      scrollTrigger: {
+        trigger: '#s6',
+        pin: true,
+        start: 'top top',
+        end: () => '+=' + totalScroll(),
+        scrub: 0.6,
+        invalidateOnRefresh: true,
+        anticipatePin: 1,
+      }
+    });
+
+    // Per-panel entrance animations driven by the pin containerAnimation
+    panels.forEach(panel => {
+      const title = panel.querySelector('[data-panel-title]');
+      const pBody = panel.querySelector('.panel-body');
+      const pNum  = panel.querySelector('.panel-num');
+      const pProg = panel.querySelector('.panel-progress');
+      const mosaic = panel.querySelector('.mosaic, .collage');
+
+      if (title) {
+        gsap.set(title, { opacity: 0, y: 40 });
+        gsap.to(title, {
+          opacity: 1, y: 0, duration: 0.9, ease: 'power3.out',
+          scrollTrigger: {
+            trigger: panel, containerAnimation: pinTween,
+            start: 'left 60%', end: 'left 20%',
+            toggleActions: 'play none none reverse',
+          }
+        });
+      }
+      if (pNum) {
+        gsap.from(pNum, {
+          opacity: 0, x: -30, duration: 0.6, ease: 'power3.out',
+          scrollTrigger: { trigger: panel, containerAnimation: pinTween, start: 'left 70%', toggleActions: 'play none none reverse' }
+        });
+      }
+      if (pBody) {
+        gsap.from(pBody, {
+          opacity: 0, y: 30, duration: 0.9, ease: 'power3.out', delay: 0.1,
+          scrollTrigger: { trigger: panel, containerAnimation: pinTween, start: 'left 60%', toggleActions: 'play none none reverse' }
+        });
+      }
+      if (mosaic) {
+        gsap.from(mosaic, {
+          opacity: 0, scale: 0.96, duration: 1.1, ease: 'power3.out',
+          scrollTrigger: { trigger: panel, containerAnimation: pinTween, start: 'left 65%', toggleActions: 'play none none reverse' }
+        });
+      }
+    });
+  }
+
+  /* ── COUNTER ── */
+  gsap.utils.toArray('[data-counter]').forEach(el => {
+    const target = parseInt(el.dataset.counter, 10);
+    const obj = { v: 0 };
+    gsap.to(obj, {
+      v: target, duration: 1.6, ease: 'power2.out',
+      onUpdate: () => { el.textContent = Math.round(obj.v); },
+      scrollTrigger: { trigger: el, start: 'top 85%', toggleActions: 'play none none none' }
+    });
+  });
+
+  /* ── COLLAGE mouse parallax ── */
+  const collage = document.getElementById('collage9');
+  if (collage) {
+    const items = collage.querySelectorAll('.img-wrap');
+    collage.addEventListener('mousemove', e => {
+      const r = collage.getBoundingClientRect();
+      const mx = (e.clientX - r.left - r.width / 2) / r.width;
+      const my = (e.clientY - r.top - r.height / 2) / r.height;
+      items.forEach((it, i) => {
+        const depth = (i % 3 + 1) * 8;
+        gsap.to(it, { x: -mx * depth, y: -my * depth, duration: 0.8, ease: 'power2.out', overwrite: 'auto' });
+      });
+    });
+    collage.addEventListener('mouseleave', () => {
+      items.forEach(it => gsap.to(it, { x: 0, y: 0, duration: 1, ease: 'power2.out', overwrite: 'auto' }));
+    });
+  }
+
+  /* ── NAV CLICKS ── */
+  document.querySelectorAll('#navDots a').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const id = a.getAttribute('href');
+      const target = document.querySelector(id);
+      if (!target) return;
+      if (lenis) lenis.scrollTo(target, { duration: 1.2 });
+      else gsap.to(window, { duration: 1.2, scrollTo: { y: target, offsetY: 0 }, ease: 'power3.inOut' });
+    });
+  });
+
+  /* ── ACTIVE DOT + PROGRESS RING ── */
+  const dots = document.querySelectorAll('#navDots a');
+  const slides = document.querySelectorAll('.slide');
+  const pgBar = document.getElementById('pgBar');
+  const pgCur = document.getElementById('pgCur');
+  const pgTot = document.getElementById('pgTot');
+  pgTot.textContent = String(dots.length).padStart(2, '0');
+  const CIRC = 2 * Math.PI * 26;
+
+  function refreshProgress() {
+    const s = window.scrollY;
+    const d = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = d > 0 ? Math.min(1, Math.max(0, s / d)) : 0;
+    pgBar.style.strokeDashoffset = (CIRC * (1 - pct)).toFixed(2);
+  }
+  ScrollTrigger.create({ start: 0, end: 'max', onUpdate: refreshProgress });
+
+  slides.forEach(slide => {
+    ScrollTrigger.create({
+      trigger: slide,
+      start: 'top 45%',
+      end: 'bottom 45%',
+      onToggle: self => {
+        if (self.isActive) {
+          dots.forEach(d => d.classList.remove('active'));
+          const matching = document.querySelector(`#navDots a[href="#${slide.id}"]`);
+          if (matching) {
+            matching.classList.add('active');
+            const i = [...dots].indexOf(matching);
+            if (i >= 0) pgCur.textContent = String(i + 1).padStart(2, '0');
+          }
+        }
+      }
+    });
+  });
+
+  refreshProgress();
+}
+
+
+/* ════════════════════════════════════════════════════════════════════
+   TILT CARDS
+   ═══════════════════════════════════════════════════════════════════ */
+document.querySelectorAll('.tilt-card').forEach(card => {
+  card.addEventListener('mousemove', e => {
+    const r = card.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top, cx = r.width / 2, cy = r.height / 2;
+    card.style.transform = `perspective(800px) rotateX(${((y - cy) / cy) * -6}deg) rotateY(${((x - cx) / cx) * 6}deg) translateY(-4px)`;
+    card.style.setProperty('--mouse-x', x + 'px');
+    card.style.setProperty('--mouse-y', y + 'px');
+  });
+  card.addEventListener('mouseleave', () => {
+    card.style.transform = 'perspective(800px) rotateX(0) rotateY(0) translateY(0)';
+  });
+});
+
+
+/* ════════════════════════════════════════════════════════════════════
+   PARTICLES
+   ═══════════════════════════════════════════════════════════════════ */
+(function createParticles() {
+  const c = document.getElementById('particles');
+  for (let i = 0; i < 16; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.left = Math.random() * 100 + 'vw';
+    p.style.animationDuration = (12 + Math.random() * 18) + 's';
+    p.style.animationDelay = (Math.random() * 15) + 's';
+    p.style.width = p.style.height = (2 + Math.random() * 3) + 'px';
+    const cl = ['#ff4757', '#ff6b81', '#ffa502', '#ff6348'];
+    p.style.background = cl[Math.floor(Math.random() * cl.length)];
+    c.appendChild(p);
+  }
+})();
+
+
+/* ════════════════════════════════════════════════════════════════════
+   CUSTOM CURSOR + MAGNETIC + BG GLOW (via WebGL now, so this is lighter)
+   ═══════════════════════════════════════════════════════════════════ */
+(function cursorSystem() {
+  const dot = document.getElementById('cursorDot');
+  const ring = document.getElementById('cursorRing');
+  const label = document.getElementById('cursorLabel');
+  if (!dot || !ring) return;
+  if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+
+  let mx = window.innerWidth / 2, my = window.innerHeight / 2;
+  let rx = mx, ry = my;
+
+  window.addEventListener('mousemove', e => {
+    mx = e.clientX; my = e.clientY;
+    dot.style.transform   = `translate3d(${mx}px,${my}px,0) translate(-50%,-50%)`;
+    label.style.transform = `translate3d(${mx}px,${my + 42}px,0) translate(-50%,-50%)`;
+  });
+
+  function animateRing() {
+    rx += (mx - rx) * 0.18;
+    ry += (my - ry) * 0.18;
+    ring.style.transform = `translate3d(${rx}px,${ry}px,0) translate(-50%,-50%)`;
+    requestAnimationFrame(animateRing);
+  }
+  animateRing();
+
+  // Image hover
+  document.querySelectorAll('.img-wrap').forEach(el => {
+    el.addEventListener('mouseenter', () => {
+      ring.classList.add('is-hover-image');
+      label.textContent = 'VIEW';
+      label.classList.add('show');
+    });
+    el.addEventListener('mouseleave', () => {
+      ring.classList.remove('is-hover-image');
+      label.classList.remove('show');
+    });
+  });
+
+  // Link/button hover
+  document.querySelectorAll('a, button, .nav-dots a, .cta-badge, .lightbox-close, .lightbox-prev, .lightbox-next').forEach(el => {
+    el.addEventListener('mouseenter', () => ring.classList.add('is-hover-link'));
+    el.addEventListener('mouseleave', () => ring.classList.remove('is-hover-link'));
+  });
+
+  // Magnetic effect
+  document.querySelectorAll('.magnetic, .nav-dots a').forEach(el => {
+    el.addEventListener('mousemove', e => {
+      const r = el.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      const dx = (e.clientX - cx) * 0.35, dy = (e.clientY - cy) * 0.35;
+      if (window.gsap) gsap.to(el, { x: dx, y: dy, duration: 0.5, ease: 'power3.out', overwrite: 'auto' });
+    });
+    el.addEventListener('mouseleave', () => {
+      if (window.gsap) gsap.to(el, { x: 0, y: 0, duration: 0.6, ease: 'elastic.out(1,0.4)', overwrite: 'auto' });
+    });
+  });
+})();
+
+
+/* ════════════════════════════════════════════════════════════════════
+   LIGHTBOX — no-flicker navigation (two image elements, cross-fade)
+   ═══════════════════════════════════════════════════════════════════ */
+(function lightbox() {
+  const lb = document.getElementById('lightbox');
+  const stage = document.getElementById('lbStage');
+  const lbCounter = document.getElementById('lbCounter');
+  const lbClose = document.getElementById('lbClose');
+  const lbPrev = document.getElementById('lbPrev');
+  const lbNext = document.getElementById('lbNext');
+  if (!lb) return;
+
+  // Collect only real (non-aria-hidden) images
+  const triggers = [...document.querySelectorAll('[data-lightbox]')]
+    .filter(el => !el.hasAttribute('data-lb-skip'))
+    .filter(el => {
+      const img = el.querySelector('img');
+      return img && !img.hasAttribute('aria-hidden');
+    });
+  const sources = triggers.map(el => el.querySelector('img'));
+
+  let idx = 0;
+  let current = document.createElement('img'); // currently visible
+  let incoming = document.createElement('img'); // incoming during transition
+  current.className = incoming.className = 'lb-image';
+  stage.appendChild(current);
+
+  function setCounter() {
+    lbCounter.textContent = `${String(idx + 1).padStart(2, '0')} / ${String(sources.length).padStart(2, '0')}`;
+  }
+
+  function open(i) {
+    idx = (i + sources.length) % sources.length;
+    current.src = sources[idx].src;
+    current.alt = sources[idx].alt || '';
+    setCounter();
+    lb.classList.add('open');
+    if (window.gsap) {
+      gsap.set(lb, { opacity: 0 });
+      gsap.to(lb, { opacity: 1, duration: 0.3 });
+      gsap.fromTo(current, { scale: 0.94, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.45, ease: 'power3.out' });
+    }
+    if (lenis) lenis.stop();
+    document.body.style.overflow = 'hidden';
+  }
+
+  function close() {
+    if (window.gsap) {
+      gsap.to(lb, { opacity: 0, duration: 0.25, onComplete: () => lb.classList.remove('open') });
+    } else {
+      lb.classList.remove('open');
+    }
+    if (lenis) lenis.start();
+    document.body.style.overflow = '';
+  }
+
+  // Transition: cross-fade between current <img> and an incoming one — NO lightbox opacity flicker
+  let transitioning = false;
+  function navigate(delta) {
+    if (transitioning) return;
+    const next = (idx + delta + sources.length) % sources.length;
+    if (next === idx) return;
+    transitioning = true;
+
+    incoming = document.createElement('img');
+    incoming.src = sources[next].src;
+    incoming.alt = sources[next].alt || '';
+    stage.appendChild(incoming);
+
+    idx = next;
+    setCounter();
+
+    if (window.gsap) {
+      gsap.set(incoming, { opacity: 0, x: delta > 0 ? 40 : -40, scale: 0.97 });
+      gsap.to(current, { opacity: 0, x: delta > 0 ? -40 : 40, duration: 0.35, ease: 'power2.inOut' });
+      gsap.to(incoming, {
+        opacity: 1, x: 0, scale: 1, duration: 0.4, ease: 'power3.out',
+        onComplete: () => {
+          if (current.parentNode) current.parentNode.removeChild(current);
+          current = incoming;
+          transitioning = false;
+        }
+      });
+    } else {
+      if (current.parentNode) current.parentNode.removeChild(current);
+      current = incoming;
+      transitioning = false;
+    }
+  }
+
+  triggers.forEach((el, i) => {
+    el.addEventListener('click', e => {
+      e.preventDefault();
+      open(i);
+    });
+  });
+  lbClose.addEventListener('click', close);
+  lbPrev.addEventListener('click', () => navigate(-1));
+  lbNext.addEventListener('click', () => navigate(1));
+  lb.addEventListener('click', e => {
+    if (e.target === lb || e.target === stage) close();
+  });
+  document.addEventListener('keydown', e => {
+    if (!lb.classList.contains('open')) return;
+    if (e.key === 'Escape') close();
+    else if (e.key === 'ArrowLeft')  navigate(-1);
+    else if (e.key === 'ArrowRight') navigate(1);
+  });
+
+  // Attach lb-image styles at runtime so we don't pollute the top of the CSS
+  const st = document.createElement('style');
+  st.textContent = `
+    .lb-image { max-width: 100%; max-height: 100%; object-fit: contain; box-shadow: 0 0 80px rgba(0,0,0,0.8); border-radius: 4px; position: absolute; will-change: transform, opacity; }
+  `;
+  document.head.appendChild(st);
+})();
+
+
+/* ════════════════════════════════════════════════════════════════════
+   KEYBOARD NAV (ignore when focused in inputs or lightbox)
+   ═══════════════════════════════════════════════════════════════════ */
+document.addEventListener('keydown', e => {
+  if (document.getElementById('lightbox').classList.contains('open')) return;
+  const tag = (e.target && e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
+  const slides = [...document.querySelectorAll('.slide')];
+  const cur = slides.findIndex(s => {
+    const r = s.getBoundingClientRect();
+    return r.top <= window.innerHeight * 0.4 && r.bottom > window.innerHeight * 0.4;
+  });
+  let next = null;
+  if (e.key === 'ArrowDown' || e.key === 'PageDown') next = slides[Math.min(cur + 1, slides.length - 1)];
+  if (e.key === 'ArrowUp'   || e.key === 'PageUp')   next = slides[Math.max(cur - 1, 0)];
+  if (e.key === 'Home') next = slides[0];
+  if (e.key === 'End')  next = slides[slides.length - 1];
+  if (next) {
+    e.preventDefault();
+    if (lenis) lenis.scrollTo(next, { duration: 1.0 });
+    else if (window.gsap) gsap.to(window, { duration: 1.0, scrollTo: { y: next, offsetY: 0 }, ease: 'power3.inOut' });
+    else next.scrollIntoView({ behavior: 'smooth' });
+  }
+});
+
+
+/* ════════════════════════════════════════════════════════════════════
+   RELAYOUT on image load
+   ═══════════════════════════════════════════════════════════════════ */
+window.addEventListener('load', () => {
+  if (window.ScrollTrigger) ScrollTrigger.refresh();
+});
+document.querySelectorAll('img').forEach(img => {
+  img.addEventListener('load', () => {
+    if (window.ScrollTrigger) ScrollTrigger.refresh();
+  }, { once: true });
+});
+</script>
+
+</body>
+</html>
